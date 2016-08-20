@@ -20,6 +20,7 @@ Requires(postun):	/usr/sbin/groupdel
 Requires(pre):	/usr/bin/getgid
 Requires(pre):	/usr/sbin/groupadd
 Requires:	rc-scripts >= 0.4.0.10
+Requires:	rsync
 Requires:	squashfs
 Requires:	uname(release) >= 4.1
 Provides:	group(lxd)
