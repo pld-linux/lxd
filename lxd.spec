@@ -1,7 +1,7 @@
 Summary:	Fast, dense and secure container management
 Name:		lxd
 Version:	2.1
-Release:	0.1
+Release:	0.2
 License:	Apache v2.0
 Group:		Applications/System
 Source0:	https://linuxcontainers.org/downloads/lxd/%{name}-%{version}.tar.gz
@@ -74,7 +74,7 @@ install -p %{SOURCE2} $RPM_BUILD_ROOT/etc/rc.d/init.d/%{name}
 cp -p %{SOURCE3} $RPM_BUILD_ROOT/etc/sysconfig/%{name}
 
 %pre
-%groupadd -g 297 %{name}
+%groupadd -g 273 %{name}
 
 %post
 /sbin/chkconfig --add %{name}
