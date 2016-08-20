@@ -13,6 +13,7 @@ URL:		http://linuxcontainers.org/
 BuildRequires:	criu-devel >= 1.7
 BuildRequires:	golang >= 1.5
 BuildRequires:	lxc-devel >= 1.1
+BuildRequires:	pkgconfig
 BuildRequires:	rpmbuild(macros) >= 1.228
 Requires(post,preun):	/sbin/chkconfig
 Requires(postun):	/usr/sbin/groupdel
