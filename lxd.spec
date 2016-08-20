@@ -4,13 +4,15 @@ Version:	2.1
 Release:	0.1
 License:	Apache v2.0
 Group:		Applications/System
-Source0:	https://linuxcontainers.org/downloads/%{name}/%{name}-%{version}.tar.gz
+Source0:	https://linuxcontainers.org/downloads/lxd/%{name}-%{version}.tar.gz
 # Source0-md5:	535d78758d3ca3542326eb6f3e072ccf
 Source1:	%{name}.service
 Source2:	%{name}.init
 Source3:	%{name}.sysconfig
-URL:		http://linuxcontainers.org
-BuildRequires:	golang >= 1.6
+URL:		http://linuxcontainers.org/
+BuildRequires:	criu-devel >= 1.7
+BuildRequires:	golang >= 1.5
+BuildRequires:	lxc-devel >= 1.1
 BuildRequires:	rpmbuild(macros) >= 1.228
 Requires(post,preun):	/sbin/chkconfig
 Requires(postun):	/usr/sbin/groupdel
