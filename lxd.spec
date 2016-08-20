@@ -10,7 +10,9 @@ Source1:	%{name}.service
 Source2:	%{name}.init
 Source3:	%{name}.sysconfig
 URL:		http://linuxcontainers.org/
+%ifarch %{x8664} arm aarch64 ppc64
 BuildRequires:	criu-devel >= 1.7
+%endif
 BuildRequires:	golang >= 1.5
 BuildRequires:	lxc-devel >= 1.1
 BuildRequires:	pkgconfig
