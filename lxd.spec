@@ -24,6 +24,7 @@ Requires:	rsync
 Requires:	squashfs
 Requires:	uname(release) >= 4.1
 Provides:	group(lxd)
+ExclusiveArch:	%{ix86} %{x8664} %{arm}
 BuildRoot:	%{tmpdir}/%{name}-%{version}-root-%(id -u -n)
 
 %define		_enable_debug_packages 0
