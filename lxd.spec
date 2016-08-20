@@ -24,8 +24,10 @@ Requires:	uname(release) >= 4.1
 Provides:	group(lxd)
 BuildRoot:	%{tmpdir}/%{name}-%{version}-root-%(id -u -n)
 
-# binary stripped or something
 %define		_enable_debug_packages 0
+%define		gobuild(o:) go build -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n')" -a -v -x %{?**};
+%define		gopath		%{_libdir}/golang
+%define		import_path	github.com/lxc/lxd
 
 %description
 LXD is a container "hypervisor" and a new user experience for LXC.
@@ -52,9 +54,10 @@ nodes, running workloads on containers rather than virtual machines.
 
 %build
 export GOPATH=$(pwd)/dist
-cd $GOPATH/src/github.com/lxc/lxd/
-go install -v ./lxd
-go install -v ./lxc
+cd $GOPATH/src/%{import_path}
+
+%gobuild -o dist/bin/lxd ./lxd
+%gobuild -o dist/bin/lxc ./lxc
 
 %install
 rm -rf $RPM_BUILD_ROOT
@@ -62,8 +65,8 @@ install -d $RPM_BUILD_ROOT{%{_bindir},%{_sbindir},%{_mandir}/man1,/etc/{rc.d/ini
 	$RPM_BUILD_ROOT/var/lib/%{name} \
         $RPM_BUILD_ROOT/var/log/%{name}
 
-install -p dist/bin/lxd $RPM_BUILD_ROOT%{_sbindir}/
-install -p dist/bin/lxc $RPM_BUILD_ROOT%{_bindir}/
+install -p dist/bin/lxd $RPM_BUILD_ROOT%{_sbindir}
+install -p dist/bin/lxc $RPM_BUILD_ROOT%{_bindir}
 
 cp -p %{SOURCE1} $RPM_BUILD_ROOT%{systemdunitdir}
 install -p %{SOURCE2} $RPM_BUILD_ROOT/etc/rc.d/init.d/%{name}
@@ -99,7 +102,7 @@ rm -rf $RPM_BUILD_ROOT
 %config(noreplace) %verify(not md5 mtime size) /etc/sysconfig/%{name}
 %attr(754,root,root) /etc/rc.d/init.d/%{name}
 %attr(755,root,root) %{_bindir}/lxc
-%attr(755,root,root) %{_sbindir}/%{name}
+%attr(755,root,root) %{_sbindir}/lxd
 %{systemdunitdir}/%{name}.service
 %dir %attr(700,root,root) /var/lib/%{name}
 %dir %attr(750,root,logs) /var/log/%{name}
