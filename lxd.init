@@ -1,0 +1,122 @@
+#!/bin/sh
+#
+# Container hypervisor and a new user experience for LXC
+#
+# chkconfig:	345 20 80
+#
+# processname:	lxd
+# pidfile: /var/run/lxd.pid
+#
+
+# Source function library
+. /etc/rc.d/init.d/functions
+
+# Get network config
+. /etc/sysconfig/network
+
+# Check that networking is up.
+if is_yes "${NETWORKING}"; then
+	if [ ! -f /var/lock/subsys/network -a "$1" != stop -a "$1" != status ]; then
+		msg_network_down "lxd"
+		exit 1
+	fi
+else
+	exit 0
+fi
+
+# Get service config - may override defaults
+[ -f /etc/sysconfig/lxd ] && . /etc/sysconfig/lxd
+OPTIONS="$OPTIONS --group lxd --logfile /var/log/lxd/lxd.log"
+
+pidfile="/var/run/lxd.pid"
+
+start() {
+	if status --pidfile $pidfile lxd lxd >/dev/null; then
+		msg_already_running "lxd"
+		return
+	fi
+
+	msg_starting "lxd"
+	daemon --fork --waitforname lxd /usr/sbin/lxd daemon $OPTIONS 
+	
+	# lxd does not write pidfile, so create one
+	show "Checking lxd daemon status"
+	busy
+	pid=""
+	ntry=0
+	while [ -z "$pid" -a $ntry -lt 5 ]; do
+		[ -z "$pid" ] && sleep 1
+		pid=$(lxc info 2>/dev/null | grep serverpid: | awk '{print $2}')
+		echo $pid > $pidfile
+		ntry=$(expr $ntry+1)
+	done
+
+	if [ -n "$pid" ]; then
+	    	touch /var/lock/subsys/lxd
+	    	ok
+	    	RETVAL=0
+	else
+	    	fail
+	    	RETVAL=1
+	fi
+}
+
+stop() {
+	if [ ! -f /var/lock/subsys/lxd ]; then
+		msg_not_running "lxd"
+		return
+	fi
+
+	# Stop daemons.
+	msg_stopping "lxd"
+	/usr/sbin/lxd shutdown 
+        busy
+	sleep 1
+	if status --pidfile $pidfile lxd lxd >/dev/null; then
+		killproc --pidfile $pidfile lxd
+	else
+		ok
+        fi
+	rm -f /var/lock/subsys/lxd
+}
+
+condrestart() {
+	if [ ! -f /var/lock/subsys/lxd ]; then
+		msg_not_running "lxd"
+		RETVAL=$1
+		return
+	fi
+
+	stop
+	start
+}
+
+RETVAL=0
+# See how we were called.
+case "$1" in
+  start)
+	start
+	;;
+  stop)
+	stop
+	;;
+  restart)
+	stop
+	start
+	;;
+  try-restart)
+	condrestart 0
+	;;
+  force-reload)
+	condrestart 7
+	;;
+  status)
+	status --pidfile $pidfile lxd lxd
+	RETVAL=$?
+	;;
+  *)
+	msg_usage "$0 {start|stop|restart|try-restart|force-reload|status}"
+	exit 3
+esac
+
+exit $RETVAL
