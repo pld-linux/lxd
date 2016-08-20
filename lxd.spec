@@ -5,7 +5,7 @@ Release:	0.1
 License:	Apache v2.0
 Group:		Applications/System
 Source0:	https://linuxcontainers.org/downloads/%{name}/%{name}-%{version}.tar.gz
-# Source0-md5:	7990440b022e93f3e7036bcfd12970f2
+# Source0-md5:	535d78758d3ca3542326eb6f3e072ccf
 Source1:	%{name}.service
 Source2:	%{name}.init
 Source3:	%{name}.sysconfig
