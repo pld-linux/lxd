@@ -64,8 +64,8 @@ cd $GOPATH/src/%{import_path}
 %install
 rm -rf $RPM_BUILD_ROOT
 install -d $RPM_BUILD_ROOT{%{_bindir},%{_sbindir},%{_mandir}/man1,/etc/{rc.d/init.d,sysconfig},%{systemdunitdir}} \
-	$RPM_BUILD_ROOT/var/lib/%{name} \
-        $RPM_BUILD_ROOT/var/log/%{name}
+	$RPM_BUILD_ROOT/var/lib/%{name}/{containers,devices,devlxd,images,security,shmounts,snapshots} \
+	$RPM_BUILD_ROOT/var/log/%{name}
 
 install -p dist/bin/lxd $RPM_BUILD_ROOT%{_sbindir}
 install -p dist/bin/lxc $RPM_BUILD_ROOT%{_bindir}
@@ -106,5 +106,12 @@ rm -rf $RPM_BUILD_ROOT
 %attr(755,root,root) %{_bindir}/lxc
 %attr(755,root,root) %{_sbindir}/lxd
 %{systemdunitdir}/%{name}.service
-%dir %attr(700,root,root) /var/lib/%{name}
 %dir %attr(750,root,logs) /var/log/%{name}
+%dir %attr(700,root,root) /var/lib/%{name}
+%dir %attr(700,root,root) /var/lib/%{name}/containers
+%dir %attr(700,root,root) /var/lib/%{name}/devices
+%dir %attr(700,root,root) /var/lib/%{name}/devlxd
+%dir %attr(700,root,root) /var/lib/%{name}/images
+%dir %attr(700,root,root) /var/lib/%{name}/security
+%dir %attr(700,root,root) /var/lib/%{name}/shmounts
+%dir %attr(700,root,root) /var/lib/%{name}/snapshots
