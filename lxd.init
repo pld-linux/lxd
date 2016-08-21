@@ -47,7 +47,7 @@ start() {
 	while [ -z "$pid" -a $ntry -lt 5 ]; do
 		[ -z "$pid" ] && sleep 1
 		pid=$(lxc info | awk '/serverpid:/{print $2}')
-		echo $pid > $pidfile
+		[ -n "$pid" ] && echo $pid > $pidfile
 		ntry=$(($ntry+1))
 	done
 
