@@ -41,7 +41,7 @@ start() {
 	msg_starting $BRIDGE_DEV
 	busy
 
-	ip link add dev lxdbr0 type bridge
+	ip link add dev $BRIDGE_DEV type bridge
 	ip a add $BRIDGE_IPADDR dev $BRIDGE_DEV
 	ip link set up dev $BRIDGE_DEV
 
