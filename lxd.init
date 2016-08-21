@@ -52,12 +52,12 @@ start() {
 	done
 
 	if [ -n "$pid" ]; then
-	    	touch /var/lock/subsys/lxd
-	    	ok
-	    	RETVAL=0
+		touch /var/lock/subsys/lxd
+		ok
+		RETVAL=0
 	else
-	    	fail
-	    	RETVAL=1
+		fail
+		RETVAL=1
 	fi
 }
 
@@ -70,13 +70,13 @@ stop() {
 	# Stop daemons.
 	msg_stopping "lxd"
 	/usr/sbin/lxd shutdown 
-        busy
+	busy
 	sleep 1
 	if status --pidfile $pidfile lxd lxd >/dev/null; then
 		killproc --pidfile $pidfile lxd
 	else
 		ok
-        fi
+	fi
 	rm -f /var/lock/subsys/lxd
 }
 

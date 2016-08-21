@@ -25,48 +25,48 @@ fi
 
 if [ -z "$BRIDGE_DEV" -o -z "$BRIDGE_IPADDR" ]; then
 	nls "Please configure BRIDGE_IPADDR in /etc/sysconfig/lxd"
-        exit 1
+	exit 1
 fi
 
 is_bridge_up() {
-    ip addr show $BRIDGE_DEV 2>/dev/null | grep -q $BRIDGE_IPADDR
+	ip addr show $BRIDGE_DEV 2>/dev/null | grep -q $BRIDGE_IPADDR
 }
 
 start() {
-        if is_bridge_up; then
+	if is_bridge_up; then
 		nls "lxd bridge %s is already up" $BRIDGE_DEV
 		return
 	fi
 
 	msg_starting $BRIDGE_DEV
-        busy
+	busy
 
-        ip link add dev lxdbr0 type bridge
-        ip a add $BRIDGE_IPADDR dev $BRIDGE_DEV
-        ip link set up dev $BRIDGE_DEV
+	ip link add dev lxdbr0 type bridge
+	ip a add $BRIDGE_IPADDR dev $BRIDGE_DEV
+	ip link set up dev $BRIDGE_DEV
 
-        if is_bridge_up; then
+	if is_bridge_up; then
 		ok
 	else
-        	fail
-        fi
+		fail
+	fi
 }
 
 stop() {
-        if ! is_bridge_up; then
+	if ! is_bridge_up; then
 		nls "lxd bridge %s is already down" $BRIDGE_DEV
 		return
-        fi
+	fi
 
 	if status --pidfile "/var/run/lxd.pid" lxd lxd >/dev/null; then
 		nls "lxd bridge cannot be down while lxd daemon is running"
-                RETVAL=1
-                return
-        fi
+		RETVAL=1
+		return
+	fi
 
 	msg_stopping $BRIDGE_DEV
-        ip link set down dev $BRIDGE_DEV
-        ip link del dev $BRIDGE_DEV
+	ip link set down dev $BRIDGE_DEV
+	ip link del dev $BRIDGE_DEV
 	ok
 }
 
@@ -79,6 +79,15 @@ condrestart() {
 
 	stop
 	start
+}
+
+status() {
+	local st="down"
+	if ip link show $BRIDGE_DEV >/dev/null; then
+		st="up"
+		RETVAL=1
+	fi
+	nls "lxd bridge $BRIDGE_DEV is %s" $st
 }
 
 RETVAL=0
@@ -101,12 +110,7 @@ case "$1" in
 	condrestart 7
 	;;
   status)
-        st="down"
-        if ip link show $BRIDGE_DEV >/dev/null; then
-               st="up"
-               RETVAL=1
-        fi
-        nls "lxd bridge $BRIDGE_DEV is %s" $st
+	status
 	;;
   *)
 	msg_usage "$0 {start|stop|restart|try-restart|force-reload|status}"
