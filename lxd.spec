@@ -8,7 +8,8 @@ Source0:	https://linuxcontainers.org/downloads/lxd/%{name}-%{version}.tar.gz
 # Source0-md5:	535d78758d3ca3542326eb6f3e072ccf
 Source1:	%{name}.service
 Source2:	%{name}.init
-Source3:	%{name}.sysconfig
+Source3:	%{name}br.init
+Source4:	%{name}.sysconfig
 URL:		http://linuxcontainers.org/
 %ifarch %{x8664} arm aarch64 ppc64
 BuildRequires:	criu-devel >= 1.7
@@ -24,6 +25,7 @@ Requires(pre):	/usr/sbin/groupadd
 Requires:	rc-scripts >= 0.4.0.10
 Requires:	rsync
 Requires:	squashfs
+Requires:	iproute2
 Requires:	uname(release) >= 4.1
 Provides:	group(lxd)
 ExclusiveArch:	%{ix86} %{x8664} %{arm}
@@ -70,12 +72,17 @@ install -d $RPM_BUILD_ROOT{%{_bindir},%{_sbindir},%{_mandir}/man1,/etc/{rc.d/ini
 	$RPM_BUILD_ROOT/var/lib/%{name}/{containers,devices,devlxd,images,security,shmounts,snapshots} \
 	$RPM_BUILD_ROOT/var/log/%{name}
 
+# lxd refuses to start containter without this directory
+install -d $RPM_BUILD_ROOT%{_libdir}/%{name}/rootfs
+
+
 install -p dist/bin/lxd $RPM_BUILD_ROOT%{_sbindir}
 install -p dist/bin/lxc $RPM_BUILD_ROOT%{_bindir}
 
 cp -p %{SOURCE1} $RPM_BUILD_ROOT%{systemdunitdir}
 install -p %{SOURCE2} $RPM_BUILD_ROOT/etc/rc.d/init.d/%{name}
-cp -p %{SOURCE3} $RPM_BUILD_ROOT/etc/sysconfig/%{name}
+install -p %{SOURCE3} $RPM_BUILD_ROOT/etc/rc.d/init.d/%{name}br
+cp -p %{SOURCE4} $RPM_BUILD_ROOT/etc/sysconfig/%{name}
 
 %pre
 %groupadd -g 273 %{name}
@@ -106,9 +113,11 @@ rm -rf $RPM_BUILD_ROOT
 %doc README.md CONTRIBUTING.md AUTHORS doc/*
 %config(noreplace) %verify(not md5 mtime size) /etc/sysconfig/%{name}
 %attr(754,root,root) /etc/rc.d/init.d/%{name}
+%attr(754,root,root) /etc/rc.d/init.d/%{name}br
 %attr(755,root,root) %{_bindir}/lxc
 %attr(755,root,root) %{_sbindir}/lxd
 %{systemdunitdir}/%{name}.service
+%dir %attr(750,root,root) %{_libdir}/%{name}/rootfs
 %dir %attr(750,root,logs) /var/log/%{name}
 %dir %attr(700,root,root) /var/lib/%{name}
 %dir %attr(700,root,root) /var/lib/%{name}/containers
