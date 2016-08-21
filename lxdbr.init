@@ -59,7 +59,7 @@ stop() {
 	fi
 
 	if status --pidfile "/var/run/lxd.pid" lxd lxd >/dev/null; then
-		nls "lxd bridge cannot be down while lxd daemon is running"
+		nls "lxd bridge cannot be stopped while lxd daemon is running"
 		RETVAL=1
 		return
 	fi
