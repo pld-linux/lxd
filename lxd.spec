@@ -74,6 +74,7 @@ cd $GOPATH/src/%{import_path}
 %install
 rm -rf $RPM_BUILD_ROOT
 install -d $RPM_BUILD_ROOT{%{_bindir},%{_sbindir},%{_mandir}/man1,/etc/{rc.d/init.d,sysconfig},%{systemdunitdir}} \
+	$RPM_BUILD_ROOT%{_libexecdir} \    
 	$RPM_BUILD_ROOT/var/lib/%{name}/{containers,devices,devlxd,images,security,shmounts,snapshots} \
 	$RPM_BUILD_ROOT/var/log/%{name}
 
@@ -130,11 +131,11 @@ rm -rf $RPM_BUILD_ROOT
 %dir %attr(750,root,root) %{_libdir}/%{name}/rootfs
 %attr(750,root,root) %{_libexecdir}/%{name}-wrapper
 %dir %attr(750,root,logs) /var/log/%{name}
-%dir %attr(700,root,root) /var/lib/%{name}
-%dir %attr(700,root,root) /var/lib/%{name}/containers
+%dir %attr(711,root,root) /var/lib/%{name}
+%dir %attr(711,root,root) /var/lib/%{name}/containers
 %dir %attr(700,root,root) /var/lib/%{name}/devices
 %dir %attr(700,root,root) /var/lib/%{name}/devlxd
 %dir %attr(700,root,root) /var/lib/%{name}/images
 %dir %attr(700,root,root) /var/lib/%{name}/security
-%dir %attr(700,root,root) /var/lib/%{name}/shmounts
+%dir %attr(711,root,root) /var/lib/%{name}/shmounts
 %dir %attr(700,root,root) /var/lib/%{name}/snapshots
