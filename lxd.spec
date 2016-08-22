@@ -74,7 +74,7 @@ cd $GOPATH/src/%{import_path}
 %install
 rm -rf $RPM_BUILD_ROOT
 install -d $RPM_BUILD_ROOT{%{_bindir},%{_sbindir},%{_mandir}/man1,/etc/{rc.d/init.d,sysconfig},%{systemdunitdir}} \
-	$RPM_BUILD_ROOT%{_libexecdir} \    
+	$RPM_BUILD_ROOT%{_libexecdir} \
 	$RPM_BUILD_ROOT/var/lib/%{name}/{containers,devices,devlxd,images,security,shmounts,snapshots} \
 	$RPM_BUILD_ROOT/var/log/%{name}
 
