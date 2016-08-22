@@ -33,9 +33,18 @@ pidfile="/var/run/lxd.pid"
 start() {
 	if status --pidfile $pidfile lxd lxd >/dev/null; then
 		msg_already_running "lxd"
+		RETVAL=1
 		return
 	fi
 
+	if [ -n "$BRIDGE_DEV" ]; then
+		if ! ip link show $BRIDGE_DEV 2>/dev/null | grep -q ",UP,"; then
+			nls "lxd bridge %s is down, start lxdbr service first" "$BRIDGE_DEV"
+			RETVAL=1
+			return
+		fi
+	fi
+                
 	msg_starting "lxd"
 	daemon --fork --waitforname lxd /usr/sbin/lxd daemon $OPTIONS 
 	
