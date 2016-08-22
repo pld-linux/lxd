@@ -2,7 +2,7 @@
 #
 # Bridge interface setup for LXD
 #
-# chkconfig:	345 21 79
+# chkconfig:	345 19 81
 #
 
 # Source function library
