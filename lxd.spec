@@ -120,7 +120,7 @@ rm -rf $RPM_BUILD_ROOT
 %attr(755,root,root) %{_bindir}/lxc
 %attr(755,root,root) %{_sbindir}/lxd
 %{systemdunitdir}/%{name}.service
-%dir %attr(750,root,root) %{_libdir}/%{name}/rootfs
+%dir %attr(750,root,root) %{_libdir}/%{name}
 %dir %attr(750,root,logs) /var/log/%{name}
 %dir %attr(700,root,root) /var/lib/%{name}
 %dir %attr(700,root,root) /var/lib/%{name}/containers
