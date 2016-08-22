@@ -29,7 +29,7 @@ if [ -z "$BRIDGE_DEV" -o -z "$BRIDGE_IPADDR" ]; then
 fi
 
 is_bridge_up() {
-	ip addr show $BRIDGE_DEV 2>/dev/null | grep -q $BRIDGE_IPADDR
+	ip link show $BRIDGE_DEV 2>/dev/null | grep -q ",UP,"
 }
 
 start() {
@@ -42,7 +42,7 @@ start() {
 	busy
 
 	ip link add dev $BRIDGE_DEV type bridge
-	ip a add $BRIDGE_IPADDR dev $BRIDGE_DEV
+	ip addr add $BRIDGE_IPADDR dev $BRIDGE_DEV
 	ip link set up dev $BRIDGE_DEV
 
 	if is_bridge_up; then
@@ -83,9 +83,10 @@ condrestart() {
 
 bridge_status() {
 	local st="down"
-	if ip link show $BRIDGE_DEV >/dev/null; then
+	RETVAL=1
+	if is_bridge_up; then
 		st="up"
-		RETVAL=1
+		RETVAL=0
 	fi
 	nls "lxd bridge %s is %s" "$BRIDGE_DEV" "$st"
 }
