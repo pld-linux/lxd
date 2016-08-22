@@ -46,7 +46,7 @@ start() {
 	fi
                 
 	msg_starting "lxd"
-	daemon --fork --waitforname lxd /usr/sbin/lxd daemon $OPTIONS 
+	daemon --fork --waitforname lxd /usr/lib/lxd-wrapper daemon $OPTIONS 
 	
 	# lxd does not write pidfile, so create one
 	show "Checking lxd daemon status"

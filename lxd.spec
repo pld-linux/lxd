@@ -1,7 +1,10 @@
+# TODO
+# - lxdbr0 interface setup for systemd
+
 Summary:	Fast, dense and secure container management
 Name:		lxd
 Version:	2.1
-Release:	0.2
+Release:	0.3
 License:	Apache v2.0
 Group:		Applications/System
 Source0:	https://linuxcontainers.org/downloads/lxd/%{name}-%{version}.tar.gz
@@ -10,6 +13,7 @@ Source1:	%{name}.service
 Source2:	%{name}.init
 Source3:	%{name}br.init
 Source4:	%{name}.sysconfig
+Source5:	%{name}.sh
 URL:		http://linuxcontainers.org/
 %ifarch %{x8664} arm aarch64 ppc64
 BuildRequires:	criu-devel >= 1.7
@@ -35,6 +39,7 @@ BuildRoot:	%{tmpdir}/%{name}-%{version}-root-%(id -u -n)
 %define		gobuild(o:) go build -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n')" -a -v -x %{?**};
 %define		gopath		%{_libdir}/golang
 %define		import_path	github.com/lxc/lxd
+%define		_libexecdir	%{_prefix}/lib
 
 %description
 LXD is a container "hypervisor" and a new user experience for LXC.
@@ -75,7 +80,6 @@ install -d $RPM_BUILD_ROOT{%{_bindir},%{_sbindir},%{_mandir}/man1,/etc/{rc.d/ini
 # lxd refuses to start containter without this directory
 install -d $RPM_BUILD_ROOT%{_libdir}/%{name}/rootfs
 
-
 install -p dist/bin/lxd $RPM_BUILD_ROOT%{_sbindir}
 install -p dist/bin/lxc $RPM_BUILD_ROOT%{_bindir}
 
@@ -83,6 +87,8 @@ cp -p %{SOURCE1} $RPM_BUILD_ROOT%{systemdunitdir}
 install -p %{SOURCE2} $RPM_BUILD_ROOT/etc/rc.d/init.d/%{name}
 install -p %{SOURCE3} $RPM_BUILD_ROOT/etc/rc.d/init.d/%{name}br
 cp -p %{SOURCE4} $RPM_BUILD_ROOT/etc/sysconfig/%{name}
+
+install -p %{SOURCE5} $RPM_BUILD_ROOT%{_libexecdir}/lxd-wrapper
 
 %pre
 %groupadd -g 273 %{name}
@@ -121,6 +127,8 @@ rm -rf $RPM_BUILD_ROOT
 %attr(755,root,root) %{_sbindir}/lxd
 %{systemdunitdir}/%{name}.service
 %dir %attr(750,root,root) %{_libdir}/%{name}
+%dir %attr(750,root,root) %{_libdir}/%{name}/rootfs
+%attr(750,root,root) %{_libexecdir}/%{name}-wrapper
 %dir %attr(750,root,logs) /var/log/%{name}
 %dir %attr(700,root,root) /var/lib/%{name}
 %dir %attr(700,root,root) /var/lib/%{name}/containers
