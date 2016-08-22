@@ -38,7 +38,7 @@ start() {
 	fi
 
 	if [ -n "$BRIDGE_DEV" ]; then
-		if ! ip link show $BRIDGE_DEV 2>/dev/null | grep -q ",UP,"; then
+		if ! ip link show $BRIDGE_DEV up 2>/dev/null | grep -q $BRIDGE_DEV; then
 			nls "lxd bridge %s is down, start lxdbr service first" "$BRIDGE_DEV"
 			RETVAL=1
 			return

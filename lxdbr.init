@@ -29,7 +29,7 @@ if [ -z "$BRIDGE_DEV" -o -z "$BRIDGE_IPADDR" ]; then
 fi
 
 is_bridge_up() {
-	ip link show $BRIDGE_DEV 2>/dev/null | grep -q ",UP"
+	ip link show $BRIDGE_DEV up 2>/dev/null | grep -q $BRIDGE_DEV
 }
 
 start() {
