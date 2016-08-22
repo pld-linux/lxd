@@ -88,6 +88,7 @@ cp -p %{SOURCE4} $RPM_BUILD_ROOT/etc/sysconfig/%{name}
 %groupadd -g 273 %{name}
 
 %post
+/sbin/chkconfig --add %{name}br
 /sbin/chkconfig --add %{name}
 %service -n %{name} restart
 %systemd_post %{name}.service
@@ -95,7 +96,9 @@ cp -p %{SOURCE4} $RPM_BUILD_ROOT/etc/sysconfig/%{name}
 %preun
 if [ "$1" = "0" ]; then
 	%service -q %{name} stop
+	%service -q %{name}br stop
 	/sbin/chkconfig --del %{name}
+	/sbin/chkconfig --del %{name}br
 fi
 %systemd_preun %{name}.service
 
