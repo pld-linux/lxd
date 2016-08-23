@@ -11,4 +11,4 @@ fi
 
 exec 1>>/dev/null
 exec 2>&1
-exec /usr/sbin/lxd $@
+exec /usr/sbin/lxd "$@"
