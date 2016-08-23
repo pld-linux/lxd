@@ -4,9 +4,9 @@
 # are printed in log file as well, so just ignore stderr here 
 
 if [ "$1" != "daemon" ]; then
-    echo "This is a wrapper script for lxd, executed by service scripts."
-    echo "Use /usr/sbin/lxd to run lxd manually."
-    exit 0
+    echo >&2 "This is a wrapper script for lxd, executed by service scripts."
+    echo >&2 "Use /usr/sbin/lxd to run lxd manually."
+    exit 1
 fi
 
 exec 1>>/dev/null
