@@ -1,14 +1,15 @@
 # TODO
 # - lxdbr0 interface setup for systemd
+# - Consider use of lxd group for lxd
 
 Summary:	Fast, dense and secure container management
 Name:		lxd
-Version:	2.5
-Release:	1	
+Version:	2.6
+Release:	0.2	
 License:	Apache v2.0
 Group:		Applications/System
 Source0:	https://linuxcontainers.org/downloads/lxd/%{name}-%{version}.tar.gz
-# Source0-md5:	98d2ee7aedc7b9fe515fc83168a57e76
+# Source0-md5:	1bc362f7fa1a33d7012a606f6b54ec47
 Source1:	%{name}.service
 Source2:	%{name}.init
 Source3:	%{name}br.init
@@ -27,6 +28,7 @@ Requires(postun):	/usr/sbin/groupdel
 Requires(pre):	/usr/bin/getgid
 Requires(pre):	/usr/sbin/groupadd
 Requires:	rc-scripts >= 0.4.0.10
+Requires:	dnsmasq
 Requires:	rsync
 Requires:	squashfs
 Requires:	iproute2
