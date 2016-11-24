@@ -4,8 +4,9 @@ Documentation=http://linuxcontainers.org
 After=network.target
 
 [Service]
-Type=notify
-ExecStart=/usr/sbin/lxd daemon --syslog
+Type=simple
+ExecStart=/usr/sbin/lxd daemon 
+ExecStop=/usr/sbin/lxd shutdown 
 ExecReload=/bin/kill -s HUP $MAINPID
 LimitNOFILE=infinity
 LimitNPROC=infinity
