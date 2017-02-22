@@ -36,14 +36,6 @@ start() {
 		RETVAL=1
 		return
 	fi
-
-	if [ -n "$BRIDGE_DEV" ]; then
-		if ! ip link show $BRIDGE_DEV up 2>/dev/null | grep -q $BRIDGE_DEV; then
-			nls "lxd bridge %s is down, start lxdbr service first" "$BRIDGE_DEV"
-			RETVAL=1
-			return
-		fi
-	fi
                 
 	msg_starting "lxd"
 	daemon --fork --waitforname lxd /usr/lib/lxd-wrapper daemon $OPTIONS 
@@ -55,7 +47,7 @@ start() {
 	ntry=0
 	while [ -z "$pid" -a $ntry -lt 5 ]; do
 		[ -z "$pid" ] && sleep 1
-		pid=$(lxc info 2>/dev/null | awk '/serverpid:/{print $2}')
+		pid=$(lxc info 2>/dev/null | awk '/server_pid:/{print $2}')
 		[ -n "$pid" ] && echo $pid > $pidfile
 		ntry=$(($ntry+1))
 	done

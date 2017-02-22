@@ -1,20 +1,18 @@
 # TODO
-# - lxdbr0 interface setup for systemd
 # - Consider use of lxd group for lxd
 
 Summary:	Fast, dense and secure container management
 Name:		lxd
-Version:	2.6.2
+Version:	2.9.2
 Release:	1	
 License:	Apache v2.0
 Group:		Applications/System
 Source0:	https://linuxcontainers.org/downloads/lxd/%{name}-%{version}.tar.gz
-# Source0-md5:	59a4f949c7cc6bb3846998e9d4e9adaa
+# Source0-md5:	f09c333ea237014ab3f6abf4f9173339
 Source1:	%{name}.service
 Source2:	%{name}.init
-Source3:	%{name}br.init
-Source4:	%{name}.sysconfig
-Source5:	%{name}.sh
+Source3:	%{name}.sysconfig
+Source4:	%{name}.sh
 URL:		http://linuxcontainers.org/
 %ifarch %{x8664} arm aarch64 ppc64
 BuildRequires:	criu-devel >= 1.7
@@ -88,16 +86,14 @@ install -p dist/bin/lxc $RPM_BUILD_ROOT%{_bindir}
 
 cp -p %{SOURCE1} $RPM_BUILD_ROOT%{systemdunitdir}
 install -p %{SOURCE2} $RPM_BUILD_ROOT/etc/rc.d/init.d/%{name}
-install -p %{SOURCE3} $RPM_BUILD_ROOT/etc/rc.d/init.d/%{name}br
-cp -p %{SOURCE4} $RPM_BUILD_ROOT/etc/sysconfig/%{name}
+cp -p %{SOURCE3} $RPM_BUILD_ROOT/etc/sysconfig/%{name}
 
-install -p %{SOURCE5} $RPM_BUILD_ROOT%{_libexecdir}/lxd-wrapper
+install -p %{SOURCE4} $RPM_BUILD_ROOT%{_libexecdir}/lxd-wrapper
 
 %pre
 %groupadd -g 273 %{name}
 
 %post
-/sbin/chkconfig --add %{name}br
 /sbin/chkconfig --add %{name}
 %service -n %{name} restart
 %systemd_post %{name}.service
@@ -105,9 +101,7 @@ install -p %{SOURCE5} $RPM_BUILD_ROOT%{_libexecdir}/lxd-wrapper
 %preun
 if [ "$1" = "0" ]; then
 	%service -q %{name} stop
-	%service -q %{name}br stop
 	/sbin/chkconfig --del %{name}
-	/sbin/chkconfig --del %{name}br
 fi
 %systemd_preun %{name}.service
 
@@ -125,7 +119,6 @@ rm -rf $RPM_BUILD_ROOT
 %doc README.md CONTRIBUTING.md AUTHORS doc/*
 %config(noreplace) %verify(not md5 mtime size) /etc/sysconfig/%{name}
 %attr(754,root,root) /etc/rc.d/init.d/%{name}
-%attr(754,root,root) /etc/rc.d/init.d/%{name}br
 %attr(755,root,root) %{_bindir}/lxc
 %attr(755,root,root) %{_sbindir}/lxd
 %{systemdunitdir}/%{name}.service

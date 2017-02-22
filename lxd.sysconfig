@@ -9,6 +9,3 @@ SERVICE_LIMITS="-n 1048576 -u 1048576"
 # Modify these options if you want to change the way the lxd daemon runs
 #OPTIONS=""
 
-# LXD bridge dev and ip address 
-BRIDGE_DEV="lxdbr0"
-#BRIDGE_IPADDR="192.168.1.1/24"
