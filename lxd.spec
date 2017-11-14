@@ -3,12 +3,12 @@
 
 Summary:	Fast, dense and secure container management
 Name:		lxd
-Version:	2.18
+Version:	2.19
 Release:	1	
 License:	Apache v2.0
 Group:		Applications/System
 Source0:	https://linuxcontainers.org/downloads/lxd/%{name}-%{version}.tar.gz
-# Source0-md5:	ba2911d244d5098e4314c8ebd9969496
+# Source0-md5:	894acad70a42d45eade82713028ab750
 Source1:	%{name}.service
 Source2:	%{name}.init
 Source3:	%{name}.sysconfig
@@ -116,7 +116,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %files
 %defattr(644,root,root,755)
-%doc README.md CONTRIBUTING.md AUTHORS doc/*
+%doc README.md AUTHORS doc/*
 %config(noreplace) %verify(not md5 mtime size) /etc/sysconfig/%{name}
 %attr(754,root,root) /etc/rc.d/init.d/%{name}
 %attr(755,root,root) %{_bindir}/lxc
