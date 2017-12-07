@@ -3,12 +3,12 @@
 
 Summary:	Fast, dense and secure container management
 Name:		lxd
-Version:	2.19
+Version:	2.20
 Release:	1	
 License:	Apache v2.0
 Group:		Applications/System
 Source0:	https://linuxcontainers.org/downloads/lxd/%{name}-%{version}.tar.gz
-# Source0-md5:	894acad70a42d45eade82713028ab750
+# Source0-md5:	ff2e4305b17e9d7b4f46d896d824fa92
 Source1:	%{name}.service
 Source2:	%{name}.init
 Source3:	%{name}.sysconfig
