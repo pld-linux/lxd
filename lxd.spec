@@ -3,12 +3,12 @@
 
 Summary:	Fast, dense and secure container management
 Name:		lxd
-Version:	2.21
+Version:	3.6
 Release:	1	
 License:	Apache v2.0
 Group:		Applications/System
 Source0:	https://linuxcontainers.org/downloads/lxd/%{name}-%{version}.tar.gz
-# Source0-md5:	72a5fdfac995db0bc0bf2bb741e6611c
+# Source0-md5:	5da7becd8c9809535093149b7360c0e7
 Source1:	%{name}.service
 Source2:	%{name}.init
 Source3:	%{name}.sysconfig
@@ -17,8 +17,9 @@ URL:		http://linuxcontainers.org/
 %ifarch %{x8664} arm aarch64 ppc64
 BuildRequires:	criu-devel >= 1.7
 %endif
+BuildRequires:	dqlite-devel
 BuildRequires:	golang >= 1.5
-BuildRequires:	lxc-devel >= 1.1
+BuildRequires:	lxc-devel >= 3.0
 BuildRequires:	pkgconfig
 BuildRequires:	rpmbuild(macros) >= 1.228
 Requires(post,preun):	/sbin/chkconfig
