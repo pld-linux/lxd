@@ -15,7 +15,7 @@ BuildRequires:	acl-devel
 %ifarch %{x8664} arm aarch64 ppc64
 BuildRequires:	criu-devel >= 1.7
 %endif
-BuildRequires:	dqlite-devel
+BuildRequires:	dqlite-devel >= 1.4.0
 BuildRequires:	golang >= 1.5
 BuildRequires:	libco-devel
 BuildRequires:	libuv-devel
@@ -30,10 +30,15 @@ Requires(pre):	/usr/bin/getgid
 Requires(pre):	/usr/sbin/groupadd
 Requires:	dnsmasq
 Requires:	iproute2
+Requires:	libcgroup
 Requires:	rc-scripts >= 0.4.0.10
 Requires:	rsync
 Requires:	squashfs
+# for sqfs2tar
+Requires:	squashfs-tools-ng
+Requires:	tar
 Requires:	uname(release) >= 4.1
+Requires:	xz
 Provides:	group(lxd)
 ExclusiveArch:	%{ix86} %{x8664} %{arm}
 BuildRoot:	%{tmpdir}/%{name}-%{version}-root-%(id -u -n)
