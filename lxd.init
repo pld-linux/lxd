@@ -43,14 +43,11 @@ start() {
 	# lxd does not write pidfile, so create one
 	show "Checking lxd daemon status"
 	busy
-	pid=""
-	ntry=0
-	while [ -z "$pid" -a $ntry -lt 5 ]; do
-		[ -z "$pid" ] && sleep 1
-		pid=$(lxc info 2>/dev/null | awk '/server_pid:/{print $2}')
-		[ -n "$pid" ] && echo $pid > $pidfile
-		ntry=$(($ntry+1))
-	done
+	
+	if lxd waitready --timeout=16 2>/dev/null; then
+	    pid=$(lxc info 2>/dev/null | awk '/server_pid:/{print $2}')
+   	    [ -n "$pid" ] && echo $pid > $pidfile
+	fi 
 
 	if [ -n "$pid" ]; then
 		touch /var/lock/subsys/lxd

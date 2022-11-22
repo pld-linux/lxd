@@ -1,27 +1,28 @@
 Summary:	Fast, dense and secure container and virtual machine management
 Name:		lxd
-Version:	3.22
+Version:	4.24
 Release:	1
 License:	Apache v2.0
 Group:		Applications/System
 Source0:	https://linuxcontainers.org/downloads/lxd/%{name}-%{version}.tar.gz
-# Source0-md5:	3bbcfd764058f0383dfb599df635e0bb
+# Source0-md5:	85313ed5ded11aad00e6376a8f140cc7
 Source1:	%{name}.service
 Source2:	%{name}.init
 Source3:	%{name}.sysconfig
 Source4:	%{name}.sh
+Patch1:		glibc2_36.patch
 URL:		http://linuxcontainers.org/
 BuildRequires:	acl-devel
 %ifarch %{x8664} arm aarch64 ppc64
 BuildRequires:	criu-devel >= 1.7
 %endif
-BuildRequires:	dqlite-devel >= 1.4.0
-BuildRequires:	golang >= 1.5
+BuildRequires:	dqlite-devel >= 1.10.0
+BuildRequires:	golang >= 1.18
 BuildRequires:	libco-devel
 BuildRequires:	libuv-devel
 BuildRequires:	lxc-devel >= 3.0
 BuildRequires:	pkgconfig
-BuildRequires:	raft-devel
+BuildRequires:	raft-devel >= 0.14.0
 BuildRequires:	rpmbuild(macros) >= 1.228
 BuildRequires:	udev-devel
 Requires(post,preun):	/sbin/chkconfig
@@ -37,6 +38,7 @@ Requires:	squashfs
 # for sqfs2tar
 Requires:	squashfs-tools-ng
 Requires:	tar
+Requires:	uidmap
 Requires:	uname(release) >= 4.1
 Requires:	xz
 Provides:	group(lxd)
@@ -45,7 +47,7 @@ BuildRoot:	%{tmpdir}/%{name}-%{version}-root-%(id -u -n)
 
 %define		_enable_debug_packages 0
 %define		gobuild(o:) go build -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n')" -a -v -x %{?**};
-%define		goinstall go install -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n')" -a -v -x
+%define		goinstall go install -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n')" -a -v
 %define		gopath		%{_libdir}/golang
 %define		import_path	github.com/lxc/lxd
 %define		_libexecdir	%{_prefix}/lib
@@ -77,6 +79,12 @@ Summary:	LXD Agent
 This package contains lxd-agent program to be used inside virtual
 machines (not containers) managed by LXD.
 
+%package tools
+Summary:	LXD Tools
+
+%description tools
+This package contains lxd extra tools
+
 %package -n bash-completion-%{name}
 Summary:	bash-completion for %{name}
 Summary(pl.UTF-8):	Bashowe dopełnianie parametrów dla %{name}
@@ -93,14 +101,21 @@ Bashowe dopełnianie parametrów dla %{name}
 
 %prep
 %setup -q
+%patch1 -p1
 
 %build
 export GOPATH=$(pwd)/_dist
 export GOBIN=$GOPATH/bin
+# flags from ArchLinux package
+export GOFLAGS="-buildmode=pie -trimpath"
+export CGO_LDFLAGS_ALLOW="-Wl,-z,now"
 
 %goinstall -tags libsqlite3 ./...
-CGO_ENABLED=0 %goinstall -tags netgo ./lxd-p2c
-%goinstall -tags agent ./lxd-agent
+CGO_ENABLED=0 %goinstall -tags netgo ./lxd-migrate/...
+%goinstall -tags agent ./lxd-agent/...
+
+# conflict
+mv doc/README.md doc/README.doc.md
 
 %install
 rm -rf $RPM_BUILD_ROOT
@@ -113,8 +128,8 @@ install -d $RPM_BUILD_ROOT{%{_bindir},%{_sbindir},%{_mandir}/man1,/etc/{rc.d/ini
 # lxd refuses to start containter without this directory
 install -d $RPM_BUILD_ROOT%{_libdir}/%{name}/rootfs
 
-install -p _dist/bin/{lxd,lxd-agent,lxc-to-lxd,lxd-p2c} $RPM_BUILD_ROOT%{_sbindir}
-install -p _dist/bin/{lxc,fuidshift} $RPM_BUILD_ROOT%{_bindir}
+install -p _dist/bin/{lxd,lxd-user,lxd-agent} $RPM_BUILD_ROOT%{_sbindir}
+install -p _dist/bin/{lxc,fuidshift,lxc-to-lxd,lxd-benchmark,lxd-migrate} $RPM_BUILD_ROOT%{_bindir}
 
 # FIXME: it seems that bash completions must be named as command (lxc), so
 # it conflicts with lxc completions (bash-completion-lxc)
@@ -157,10 +172,8 @@ rm -rf $RPM_BUILD_ROOT
 %config(noreplace) %verify(not md5 mtime size) /etc/sysconfig/%{name}
 %attr(754,root,root) /etc/rc.d/init.d/%{name}
 %attr(755,root,root) %{_bindir}/lxc
-%attr(755,root,root) %{_bindir}/fuidshift
 %attr(755,root,root) %{_sbindir}/lxd
-%attr(755,root,root) %{_sbindir}/lxd-p2c
-%attr(755,root,root) %{_sbindir}/lxc-to-lxd
+%attr(755,root,root) %{_sbindir}/lxd-user
 %{systemdunitdir}/%{name}.service
 %dir %attr(750,root,root) %{_libdir}/%{name}
 %dir %attr(750,root,root) %{_libdir}/%{name}/rootfs
@@ -178,6 +191,13 @@ rm -rf $RPM_BUILD_ROOT
 %files agent
 %defattr(644,root,root,755)
 %attr(755,root,root) %{_sbindir}/lxd-agent
+
+%files tools
+%defattr(644,root,root,755)
+%attr(755,root,root) %{_bindir}/fuidshift
+%attr(755,root,root) %{_bindir}/lxc-to-lxd
+%attr(755,root,root) %{_bindir}/lxd-benchmark
+%attr(755,root,root) %{_bindir}/lxd-migrate
 
 %files -n bash-completion-%{name}
 %defattr(644,root,root,755)
