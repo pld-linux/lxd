@@ -1,23 +1,22 @@
 Summary:	Fast, dense and secure container and virtual machine management
 Name:		lxd
-Version:	4.24
+Version:	5.21.3
 Release:	1
-License:	Apache v2.0
+License:	AGPL v3.0
 Group:		Applications/System
-Source0:	https://linuxcontainers.org/downloads/lxd/%{name}-%{version}.tar.gz
-# Source0-md5:	85313ed5ded11aad00e6376a8f140cc7
+Source0:	https://github.com/canonical/lxd/archive/refs/tags/%{name}-%{version}.tar.gz
+# Source0-md5:	7dab2698e4cfbb3f8aba388e97152f98
 Source1:	%{name}.service
 Source2:	%{name}.init
 Source3:	%{name}.sysconfig
 Source4:	%{name}.sh
-Patch1:		glibc2_36.patch
 URL:		http://linuxcontainers.org/
 BuildRequires:	acl-devel
 %ifarch %{x8664} arm aarch64 ppc64
 BuildRequires:	criu-devel >= 1.7
 %endif
-BuildRequires:	dqlite-devel >= 1.10.0
-BuildRequires:	golang >= 1.18
+BuildRequires:	dqlite-devel >= 1.18.0
+BuildRequires:	golang >= 1.23
 BuildRequires:	libco-devel
 BuildRequires:	libuv-devel
 BuildRequires:	lxc-devel >= 3.0
@@ -100,8 +99,7 @@ bash-completion for %{name}
 Bashowe dopełnianie parametrów dla %{name}
 
 %prep
-%setup -q
-%patch1 -p1
+%setup -q -n %{name}-%{name}-%{version}
 
 %build
 export GOPATH=$(pwd)/_dist
