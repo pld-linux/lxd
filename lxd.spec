@@ -1,7 +1,7 @@
 Summary:	Fast, dense and secure container and virtual machine management
 Name:		lxd
 Version:	5.21.3
-Release:	2
+Release:	3
 License:	AGPL v3.0
 Group:		Applications/System
 Source0:	https://github.com/canonical/lxd/archive/refs/tags/%{name}-%{version}.tar.gz
