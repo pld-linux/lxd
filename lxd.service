@@ -1,11 +1,11 @@
 [Unit]
 Description=LXD Container Hypervisor
-Documentation=http://linuxcontainers.org
+Documentation=https://canonical.com/lxd/docs/latest/
 After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/sbin/lxd daemon 
+ExecStart=/usr/sbin/lxd daemon --group lxd
 ExecStop=/usr/sbin/lxd shutdown 
 ExecReload=/bin/kill -s HUP $MAINPID
 LimitNOFILE=infinity

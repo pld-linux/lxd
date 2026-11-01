@@ -1,0 +1,623 @@
+Authenticate TLS clients by the leaf certificate only; a client could present a
+trusted certificate it holds no key for as a chain member (GHSA-99jp-jwmc-65p4).
+https://github.com/canonical/lxd/pull/19426
+
+diff --git a/lxd-agent/server.go b/lxd-agent/server.go
+index 4328aa814b9f..03c2676a16bf 100644
+--- a/lxd-agent/server.go
++++ b/lxd-agent/server.go
+@@ -10,6 +10,7 @@ import (
+ 	"net/http"
+ 	"time"
+ 
++	"github.com/canonical/lxd/lxd/request"
+ 	"github.com/canonical/lxd/lxd/response"
+ 	"github.com/canonical/lxd/lxd/util"
+ 	"github.com/canonical/lxd/shared"
+@@ -106,14 +107,13 @@ func createCmd(restAPI *http.ServeMux, version string, c APIEndpoint, cert *x509
+ }
+ 
+ func authenticate(r *http.Request, cert *x509.Certificate) bool {
+-	clientCerts := map[string]x509.Certificate{"0": *cert}
+-
+-	for _, cert := range r.TLS.PeerCertificates {
+-		trusted, _ := util.CheckMutualTLS(*cert, clientCerts)
+-		if trusted {
+-			return true
+-		}
++	peerCertificate, err := request.GetPeerCertificate(r)
++	if err != nil {
++		return false
+ 	}
+ 
+-	return false
++	clientCerts := map[string]x509.Certificate{"0": *cert}
++
++	trusted, _ := util.CheckMutualTLS(*peerCertificate, clientCerts)
++	return trusted
+ }
+diff --git a/lxd/api_vsock.go b/lxd/api_vsock.go
+index 65ab3023fed6..7560604270c5 100644
+--- a/lxd/api_vsock.go
++++ b/lxd/api_vsock.go
+@@ -10,6 +10,7 @@ import (
+ 	"github.com/canonical/lxd/lxd/db"
+ 	"github.com/canonical/lxd/lxd/db/cluster"
+ 	"github.com/canonical/lxd/lxd/instance"
++	"github.com/canonical/lxd/lxd/request"
+ 	"github.com/canonical/lxd/lxd/state"
+ 	"github.com/canonical/lxd/lxd/util"
+ 	"github.com/canonical/lxd/shared/api"
+@@ -81,11 +82,14 @@ func authenticateAgentCert(s *state.State, r *http.Request) (bool, instance.Inst
+ 	agentCert := inst.(instance.VM).AgentCertificate()
+ 	trustedCerts := map[string]x509.Certificate{"0": *agentCert}
+ 
+-	for _, cert := range r.TLS.PeerCertificates {
+-		trusted, _ = util.CheckMutualTLS(*cert, trustedCerts)
+-		if trusted {
+-			return true, inst, nil
+-		}
++	peerCertificate, err := request.GetPeerCertificate(r)
++	if err != nil {
++		return false, nil, err
++	}
++
++	trusted, _ = util.CheckMutualTLS(*peerCertificate, trustedCerts)
++	if trusted {
++		return true, inst, nil
+ 	}
+ 
+ 	return false, nil, nil
+diff --git a/lxd/certificates.go b/lxd/certificates.go
+index 35c274c1c06e..c424cd2477a5 100644
+--- a/lxd/certificates.go
++++ b/lxd/certificates.go
+@@ -625,15 +625,10 @@ func certificatesPost(d *Daemon, r *http.Request) response.Response {
+ 
+ 		return response.OperationResponse(op)
+ 	} else if r.TLS != nil {
+-		// Add client's certificate.
+-		if len(r.TLS.PeerCertificates) < 1 {
+-			// This can happen if the client doesn't send a client certificate or if the server is in
+-			// CA mode. We rely on this check to prevent non-CA trusted client certificates from being
+-			// added when in CA mode.
++		cert, err = request.GetPeerCertificate(r)
++		if err != nil {
+ 			return response.BadRequest(errors.New("No client certificate provided"))
+ 		}
+-
+-		cert = r.TLS.PeerCertificates[len(r.TLS.PeerCertificates)-1]
+ 	} else {
+ 		return response.BadRequest(errors.New("Cannot use TLS data on non-TLS link"))
+ 	}
+@@ -1170,15 +1165,12 @@ func certificateDelete(d *Daemon, r *http.Request) response.Response {
+ 			certInfo.Name: *cert,
+ 		}
+ 
+-		trusted := false
+-		for _, i := range r.TLS.PeerCertificates {
+-			trusted, _ = util.CheckMutualTLS(*i, trustedCerts)
+-
+-			if trusted {
+-				break
+-			}
++		peerCertificate, err := request.GetPeerCertificate(r)
++		if err != nil {
++			return response.Forbidden(errors.New("Certificate cannot be deleted"))
+ 		}
+ 
++		trusted, _ := util.CheckMutualTLS(*peerCertificate, trustedCerts)
+ 		if !trusted {
+ 			return response.Forbidden(errors.New("Certificate cannot be deleted"))
+ 		}
+diff --git a/lxd/cluster/tls.go b/lxd/cluster/tls.go
+index d6dce4f7c62e..d8b9c5741e60 100644
+--- a/lxd/cluster/tls.go
++++ b/lxd/cluster/tls.go
+@@ -9,6 +9,7 @@ import (
+ 	"time"
+ 
+ 	"github.com/canonical/lxd/lxd/identity"
++	"github.com/canonical/lxd/lxd/request"
+ 	"github.com/canonical/lxd/lxd/util"
+ 	"github.com/canonical/lxd/shared"
+ 	"github.com/canonical/lxd/shared/logger"
+@@ -63,7 +64,8 @@ func tlsCheckCert(r *http.Request, networkCert *shared.CertInfo, serverCert *sha
+ 		panic(fmt.Sprintf("Invalid keypair material: %v", err))
+ 	}
+ 
+-	if r.TLS == nil {
++	peerCertificate, err := request.GetPeerCertificate(r)
++	if err != nil {
+ 		return false
+ 	}
+ 
+@@ -75,24 +77,22 @@ func tlsCheckCert(r *http.Request, networkCert *shared.CertInfo, serverCert *sha
+ 	trustedServerCerts := map[string]x509.Certificate{serverCert.Fingerprint(): *trustedServerCert}
+ 	cachedIdentityTypeCertificateServer := cache.GetServerCertificates()
+ 
+-	for _, i := range r.TLS.PeerCertificates {
+-		// Trust our own server certificate. This allows Dqlite to start with a connection back to this
+-		// member before the database is available. It also allows us to switch the server certificate to
+-		// the network certificate during cluster upgrade to per-server certificates, and it be trusted.
+-		trusted, _ := util.CheckMutualTLS(*i, trustedServerCerts)
+-		if trusted {
+-			return true
+-		}
+-
+-		// Check the trusted server certficates list provided.
+-		trusted, _ = util.CheckMutualTLS(*i, cachedIdentityTypeCertificateServer)
+-		if trusted {
+-			return true
+-		}
+-
+-		logger.Errorf("Invalid client certificate %v (%v) from %v", i.Subject, shared.CertFingerprint(i), r.RemoteAddr)
++	// Trust our own server certificate. This allows Dqlite to start with a connection back to this
++	// member before the database is available. It also allows us to switch the server certificate to
++	// the network certificate during cluster upgrade to per-server certificates, and it be trusted.
++	trusted, _ := util.CheckMutualTLS(*peerCertificate, trustedServerCerts)
++	if trusted {
++		return true
++	}
++
++	// Check the trusted server certificate list provided.
++	trusted, _ = util.CheckMutualTLS(*peerCertificate, cachedIdentityTypeCertificateServer)
++	if trusted {
++		return true
+ 	}
+ 
++	logger.Errorf("Invalid client certificate %v (%v) from %v", peerCertificate.Subject, shared.CertFingerprint(peerCertificate), r.RemoteAddr)
++
+ 	return false
+ }
+ 
+diff --git a/lxd/daemon.go b/lxd/daemon.go
+index 1d5cb610a9ba..ba150f986071 100644
+--- a/lxd/daemon.go
++++ b/lxd/daemon.go
+@@ -449,7 +449,8 @@ func extractEntitlementsFromQuery(r *http.Request, entityType entity.Type, allow
+ // event because they may originate from a server-side fault (e.g. an
+ // unreachable IdP).
+ func (d *Daemon) Authenticate(w http.ResponseWriter, r *http.Request, oidcVerifier *oidc.Verifier, allowUntrusted bool) (*request.RequestorArgs, error) {
+-	if r.TLS == nil {
++	peerCertificate, err := request.GetPeerCertificate(r)
++	if err != nil && errors.Is(err, request.ErrNoTLS) {
+ 		// For a socket, the server is listening on a file, but the client does not have an address.
+ 		// Since there is no address, the kernel uses an unnamed unix socket address.
+ 		// An unnamed or abstract Unix socket address is rendered as '@'.
+@@ -486,21 +487,14 @@ func (d *Daemon) Authenticate(w http.ResponseWriter, r *http.Request, oidcVerifi
+ 	clusterUUID := d.globalConfig.ClusterUUID()
+ 	d.globalConfigMu.Unlock()
+ 
+-	// Request has TLS. If client sent a peer certificate, check mTLS and CA.
+-	if len(r.TLS.PeerCertificates) > 0 {
+-		// Convert list of peer certificates to map.
+-		peerCertificateFingerprints := make([]string, 0, len(r.TLS.PeerCertificates))
+-		peerCertificates := make(map[string]x509.Certificate, len(r.TLS.PeerCertificates))
+-		for _, c := range r.TLS.PeerCertificates {
+-			f := shared.CertFingerprint(c)
+-			peerCertificates[f] = *c
+-			peerCertificateFingerprints = append(peerCertificateFingerprints, f)
+-		}
++	// If client sent a peer certificate, check mTLS and CA.
++	if peerCertificate != nil {
++		peerCertificateFingerprint := shared.CertFingerprint(peerCertificate)
+ 
+ 		// Anonymous function to call for each certificate type and it's associated protocol.
+ 		authTLS := func(protocol string, certGetter func(...string) map[string]x509.Certificate) (*request.RequestorArgs, error) {
+ 			// Did the client send any certificates we recognise?
+-			matchedCerts := certGetter(peerCertificateFingerprints...)
++			matchedCerts := certGetter(peerCertificateFingerprint)
+ 			if len(matchedCerts) == 0 {
+ 				// If not, they are not authenticated, but there is no error.
+ 				return nil, nil
+@@ -516,19 +510,19 @@ func (d *Daemon) Authenticate(w http.ResponseWriter, r *http.Request, oidcVerifi
+ 			}
+ 
+ 			// We've recognised the fingerprint of the caller certificate, but now we need to perform a full mTLS check.
+-			trusted, _ := util.CheckMutualTLS(peerCertificates[matchedFingerprint], matchedCerts)
++			trusted, _ := util.CheckMutualTLS(*peerCertificate, matchedCerts)
+ 			if trusted {
+ 				// If there is a server.ca file, then all client certificates must be signed by it.
+ 				// This does not apply to server certificates.
+ 				if protocol != request.ProtocolCluster && d.endpoints.NetworkCert().CA() != nil {
+-					trusted, _, _ = util.CheckCASignature(peerCertificates[matchedFingerprint], d.endpoints.NetworkCert())
++					trusted, _, _ = util.CheckCASignature(*peerCertificate, d.endpoints.NetworkCert())
+ 					if !trusted {
+ 						return nil, nil
+ 					}
+ 				}
+ 
+ 				// Get expiration date of the matched certificate.
+-				certExpiresAt := peerCertificates[matchedFingerprint].NotAfter.UTC()
++				certExpiresAt := peerCertificate.NotAfter.UTC()
+ 
+ 				return &request.RequestorArgs{
+ 					Trusted:   trusted,
+@@ -570,15 +564,13 @@ func (d *Daemon) Authenticate(w http.ResponseWriter, r *http.Request, oidcVerifi
+ 		// Lastly, check if core.trust_ca_certificates is true. If so, allow all CA signed certificates without checking
+ 		// mTLS.
+ 		if d.endpoints.NetworkCert().CA() != nil && trustCACertificates {
+-			for f, cert := range peerCertificates {
+-				trusted, _, _ := util.CheckCASignature(cert, d.endpoints.NetworkCert())
+-				if trusted {
+-					return &request.RequestorArgs{
+-						Trusted:  true,
+-						Username: f,
+-						Protocol: request.ProtocolPKI,
+-					}, nil
+-				}
++			trusted, _, _ := util.CheckCASignature(*peerCertificate, d.endpoints.NetworkCert())
++			if trusted {
++				return &request.RequestorArgs{
++					Trusted:  true,
++					Username: peerCertificateFingerprint,
++					Protocol: request.ProtocolPKI,
++				}, nil
+ 			}
+ 		}
+ 	}
+@@ -624,7 +616,7 @@ func (d *Daemon) Authenticate(w http.ResponseWriter, r *http.Request, oidcVerifi
+ 	// caller. Emit only when the endpoint requires authentication; anonymous
+ 	// requests (no peer cert, no bearer, no OIDC header) also reach this
+ 	// point and intentionally do not emit.
+-	if !allowUntrusted && len(r.TLS.PeerCertificates) > 0 {
++	if !allowUntrusted && peerCertificate != nil {
+ 		loginFail := security.AuthnLoginFail.WithSuffix(string(api.AuthenticationMethodTLS)).
+ 			UserEvent(r.Context(), security.LevelWarning, "TLS authentication failure")
+ 		d.events.SendSecurity(loginFail)
+diff --git a/lxd/identities.go b/lxd/identities.go
+index a6deb9ff7f1b..b092da8341e4 100644
+--- a/lxd/identities.go
++++ b/lxd/identities.go
+@@ -373,20 +373,25 @@ func identitiesTLSPost(d *Daemon, r *http.Request) response.Response {
+ 	}
+ 
+ 	if !requestor.IsTrusted() {
+-		return createIdentityTLSUntrusted(r.Context(), s, r.TLS.PeerCertificates, networkCert, req, notify)
++		peerCertificate, err := request.GetPeerCertificate(r)
++		if err != nil {
++			return response.BadRequest(errors.New("No client certificate provided"))
++		}
++
++		return createIdentityTLSUntrusted(r.Context(), s, peerCertificate, networkCert, req, notify)
+ 	}
+ 
+-	var peerCertificates []*x509.Certificate
++	var peerCertificate *x509.Certificate
+ 	idType, err := requestor.CallerIdentityType()
+ 	if err == nil {
+-		if idType.Name() == api.IdentityTypeBearerTokenInitialUI && r.TLS != nil {
+-			// When authenticated as the initial UI identity, allow creating a TLS identity from the presented peer certificate.
++		if idType.Name() == api.IdentityTypeBearerTokenInitialUI {
+ 			// This allows LXD UI to establish mTLS by injecting a client certificate during initial UI bearer-token access.
+-			peerCertificates = r.TLS.PeerCertificates
++			// When authenticated as the initial UI identity, allow creating a TLS identity from the presented peer certificate.
++			peerCertificate, _ = request.GetPeerCertificate(r)
+ 		}
+ 	}
+ 
+-	return createIdentityTLSTrusted(r.Context(), s, peerCertificates, networkCert, req, notify)
++	return createIdentityTLSTrusted(r.Context(), s, peerCertificate, networkCert, req, notify)
+ }
+ 
+ // swagger:operation POST /1.0/auth/identities/bearer identities identities_post_bearer
+@@ -738,7 +743,7 @@ func identityBearerTokenDelete(d *Daemon, r *http.Request) response.Response {
+ }
+ 
+ // createIdentityTLSUntrusted handles requests to create an identity when the caller is not trusted.
+-func createIdentityTLSUntrusted(ctx context.Context, s *state.State, peerCertificates []*x509.Certificate, networkCert *shared.CertInfo, req api.IdentitiesTLSPost, notify identityNotificationFunc) response.Response {
++func createIdentityTLSUntrusted(ctx context.Context, s *state.State, peerCertificate *x509.Certificate, networkCert *shared.CertInfo, req api.IdentitiesTLSPost, notify identityNotificationFunc) response.Response {
+ 	// If not trusted a token must be provided.
+ 	if req.TrustToken == "" {
+ 		return response.Forbidden(errors.New("Trust token required"))
+@@ -749,15 +754,8 @@ func createIdentityTLSUntrusted(ctx context.Context, s *state.State, peerCertifi
+ 		return response.Forbidden(errors.New("Only trust token must be provided"))
+ 	}
+ 
+-	// If not trusted get the certificate from the request TLS config.
+-	if len(peerCertificates) < 1 {
+-		return response.BadRequest(errors.New("No client certificate provided"))
+-	}
+-
+-	cert := peerCertificates[len(peerCertificates)-1]
+-
+ 	// Validate certificate.
+-	err := certificateValidate(networkCert, cert)
++	err := certificateValidate(networkCert, peerCertificate)
+ 	if err != nil {
+ 		return response.BadRequest(err)
+ 	}
+@@ -776,13 +774,13 @@ func createIdentityTLSUntrusted(ctx context.Context, s *state.State, peerCertifi
+ 
+ 	// Activate the pending identity with the certificate.
+ 	err = s.DB.Cluster.Transaction(ctx, func(ctx context.Context, tx *db.ClusterTx) error {
+-		return dbCluster.ActivateTLSIdentity(ctx, tx.Tx(), identifier, cert)
++		return dbCluster.ActivateTLSIdentity(ctx, tx.Tx(), identifier, peerCertificate)
+ 	})
+ 	if err != nil {
+ 		return response.SmartError(err)
+ 	}
+ 
+-	fingerprint := shared.CertFingerprint(cert)
++	fingerprint := shared.CertFingerprint(peerCertificate)
+ 
+ 	// Activation replaces the pending UUID identifier with the cert
+ 	// fingerprint in the database, so the event must reference the
+@@ -796,7 +794,7 @@ func createIdentityTLSUntrusted(ctx context.Context, s *state.State, peerCertifi
+ }
+ 
+ // createIdentityTLSTrusted handles requests to create an identity when the caller is trusted.
+-func createIdentityTLSTrusted(ctx context.Context, s *state.State, peerCertificates []*x509.Certificate, networkCert *shared.CertInfo, req api.IdentitiesTLSPost, notify identityNotificationFunc) response.Response {
++func createIdentityTLSTrusted(ctx context.Context, s *state.State, peerCertificate *x509.Certificate, networkCert *shared.CertInfo, req api.IdentitiesTLSPost, notify identityNotificationFunc) response.Response {
+ 	// Check if the caller has permission to create identities.
+ 	err := s.Authorizer.CheckPermission(ctx, entity.ServerURL(), auth.EntitlementCanCreateIdentities)
+ 	if err != nil {
+@@ -824,12 +822,11 @@ func createIdentityTLSTrusted(ctx context.Context, s *state.State, peerCertifica
+ 	}
+ 
+ 	cert := req.Certificate
+-	if cert == "" && len(peerCertificates) > 0 {
++	if cert == "" && peerCertificate != nil {
+ 		// Use peer certificate if no certificate was provided in the request body.
+-		peerCert := peerCertificates[len(peerCertificates)-1]
+ 		peerCertPEM := &pem.Block{
+ 			Type:  "CERTIFICATE",
+-			Bytes: peerCert.Raw,
++			Bytes: peerCertificate.Raw,
+ 		}
+ 
+ 		cert = string(pem.EncodeToMemory(peerCertPEM))
+diff --git a/lxd/request/request.go b/lxd/request/request.go
+index e214c6b8da76..f39de1a3d675 100644
+--- a/lxd/request/request.go
++++ b/lxd/request/request.go
+@@ -2,11 +2,20 @@ package request
+ 
+ import (
+ 	"context"
++	"crypto/x509"
++	"errors"
+ 	"net"
++	"net/http"
+ 
+ 	"github.com/canonical/lxd/shared/api"
+ )
+ 
++// ErrNoCertificate is returned if the request does not contain a certificate.
++var ErrNoCertificate = errors.New("No certificate present in request")
++
++// ErrNoTLS is returned if the request does not have a TLS connection.
++var ErrNoTLS = errors.New("No TLS connection state")
++
+ // CreateRequestor extracts the lifecycle event requestor data from the provided context.
+ func CreateRequestor(ctx context.Context) *api.EventLifecycleRequestor {
+ 	requestor, err := GetRequestorAuditor(ctx)
+@@ -22,3 +31,16 @@ func CreateRequestor(ctx context.Context) *api.EventLifecycleRequestor {
+ func SaveConnectionInContext(ctx context.Context, connection net.Conn) context.Context {
+ 	return context.WithValue(ctx, CtxConn, connection)
+ }
++
++// GetPeerCertificate returns the first peer certificate in the request TLS connection states peer certificate list.
++func GetPeerCertificate(r *http.Request) (*x509.Certificate, error) {
++	if r.TLS == nil {
++		return nil, api.StatusErrorf(http.StatusBadRequest, "%w", ErrNoTLS)
++	}
++
++	if len(r.TLS.PeerCertificates) == 0 {
++		return nil, api.StatusErrorf(http.StatusBadRequest, "%w", ErrNoCertificate)
++	}
++
++	return r.TLS.PeerCertificates[0], nil
++}
+diff --git a/lxd/request/request_test.go b/lxd/request/request_test.go
+new file mode 100644
+index 000000000000..0385785ac816
+--- /dev/null
++++ b/lxd/request/request_test.go
+@@ -0,0 +1,68 @@
++package request
++
++import (
++	"crypto/tls"
++	"crypto/x509"
++	"net/http"
++	"testing"
++
++	"github.com/stretchr/testify/require"
++
++	"github.com/canonical/lxd/shared/api"
++)
++
++func TestGetPeerCertificate(t *testing.T) {
++	certA := &x509.Certificate{Raw: []byte("certA")}
++	certB := &x509.Certificate{Raw: []byte("certB")}
++
++	tests := []struct {
++		name        string
++		tlsState    *tls.ConnectionState
++		wantCert    *x509.Certificate
++		wantErr     error
++		wantErrCode int
++	}{
++		{
++			name:        "no TLS connection",
++			wantErr:     ErrNoTLS,
++			wantErrCode: http.StatusBadRequest,
++		},
++		{
++			name: "TLS with empty peer certificates",
++			tlsState: &tls.ConnectionState{
++				PeerCertificates: []*x509.Certificate{},
++			},
++			wantErr:     ErrNoCertificate,
++			wantErrCode: http.StatusBadRequest,
++		},
++		{
++			name: "TLS with single certificate",
++			tlsState: &tls.ConnectionState{
++				PeerCertificates: []*x509.Certificate{certA},
++			},
++			wantCert: certA,
++		},
++		{
++			name: "TLS with certificate chain",
++			tlsState: &tls.ConnectionState{
++				PeerCertificates: []*x509.Certificate{certA, certB},
++			},
++			wantCert: certA,
++		},
++	}
++
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			req, err := http.NewRequest(http.MethodGet, "/", nil)
++			require.NoError(t, err)
++			req.TLS = tt.tlsState
++
++			cert, err := GetPeerCertificate(req)
++			require.ErrorIs(t, err, tt.wantErr)
++			require.Equal(t, tt.wantCert, cert)
++			if err != nil && tt.wantErrCode != 0 {
++				require.True(t, api.StatusErrorCheck(err, tt.wantErrCode))
++			}
++		})
++	}
++}
+diff --git a/test/suites/auth.sh b/test/suites/auth.sh
+index fbf9b3b4f34f..0666074d1bfe 100644
+--- a/test/suites/auth.sh
++++ b/test/suites/auth.sh
+@@ -187,7 +187,63 @@ test_authorization() {
+   lxc query /1.0/auth/identities/oidc/test-user@example.com | jq --exit-status '.groups == []'
+   lxc auth identity group add oidc/test-user@example.com test-group
+ 
+-  # Test fine-grained TLS identity creation
++  # Test certificate chain handling with trust tokens and authentication.
++  sub_test "TLS identity certificate chain handling during onboarding and authentication"
++
++  # 1. Generate an untrusted client leaf and an arbitrary target certificate.
++  gen_cert_and_key "chain_leaf"
++  gen_cert_and_key "chain_target"
++
++  # shellcheck disable=SC2153
++  leaf_fingerprint="$(cert_fingerprint "${LXD_CONF}/chain_leaf.crt")"
++  target_fingerprint="$(cert_fingerprint "${LXD_CONF}/chain_target.crt")"
++
++  # Build a multi-certificate chain: [leaf, target].
++  cat "${LXD_CONF}/chain_leaf.crt" "${LXD_CONF}/chain_target.crt" > "${TEST_DIR}/chain_injected.pem"
++
++  # 2. Issue a TLS identity trust token.
++  chain_token="$(lxc auth identity create tls/chain-user --quiet --group test-group)"
++
++  # 3. Attempt onboarding using the multi-certificate chain.
++  # The client proves ownership of chain_leaf.key during the TLS handshake.
++  curl -k -s \
++    --cert "${TEST_DIR}/chain_injected.pem" \
++    --key "${LXD_CONF}/chain_leaf.key" \
++    -X POST \
++    -H "Content-Type: application/json" \
++    --data "{\"trust_token\": \"${chain_token}\"}" \
++    "https://${LXD_ADDR}/1.0/auth/identities/tls" | jq --exit-status '.type == "sync" and .status_code == 200'
++
++  # 4. Assert that the activated identity matches the LEAF certificate, NOT the injected secondary certificate.
++  lxc auth identity list --format csv | grep -xF "tls,Client certificate,chain-user,${leaf_fingerprint},test-group"
++  ! lxc auth identity list --format csv | grep -F "${target_fingerprint}" || false
++
++  # 5. Assert that the client presenting the chain signed by chain_leaf.key is now authenticated.
++  curl -k -s \
++    --cert "${TEST_DIR}/chain_injected.pem" \
++    --key "${LXD_CONF}/chain_leaf.key" \
++    "https://${LXD_ADDR}/1.0" | jq --exit-status '.metadata.auth == "trusted"'
++
++  # 6. Assert that a client using chain_target.key is NOT authenticated (it was never trusted).
++  curl -k -s \
++    --cert "${LXD_CONF}/chain_target.crt" \
++    --key "${LXD_CONF}/chain_target.key" \
++    "https://${LXD_ADDR}/1.0" | jq --exit-status '.metadata.auth == "untrusted"'
++
++  # 7. Assert that an untrusted leaf bundling an already trusted certificate cannot authenticate.
++  # An attacker generates their own keypair and bundles the newly trusted 'chain_leaf.crt' into their chain.
++  gen_cert_and_key "untrusted_attacker"
++  cat "${LXD_CONF}/untrusted_attacker.crt" "${LXD_CONF}/chain_leaf.crt" > "${TEST_DIR}/spoofed_chain.pem"
++
++  curl -k -s \
++    --cert "${TEST_DIR}/spoofed_chain.pem" \
++    --key "${LXD_CONF}/untrusted_attacker.key" \
++    "https://${LXD_ADDR}/1.0" | jq --exit-status '.metadata.auth == "untrusted"'
++
++  # Clean up identity and temporary certificates.
++  lxc auth identity delete "tls/${leaf_fingerprint}"
++  rm "${TEST_DIR}/chain_injected.pem" "${TEST_DIR}/spoofed_chain.pem"
++  rm "${LXD_CONF}"/{chain_leaf,chain_target,untrusted_attacker}.{crt,key}
+ 
+   # Cannot create identities that are not tls
+   ! lxc auth identity create oidc/jane.doe@example.com || false
+diff --git a/test/suites/tls_restrictions.sh b/test/suites/tls_restrictions.sh
+index a3d5375636c0..030ff41a33da 100644
+--- a/test/suites/tls_restrictions.sh
++++ b/test/suites/tls_restrictions.sh
+@@ -2,6 +2,63 @@ test_tls_restrictions() {
+   ensure_import_testimage
+   ensure_has_localhost_remote "${LXD_ADDR}"
+ 
++  # Test certificate chain handling with trust tokens and authentication.
++  sub_test "TLS client certificate chain handling during onboarding and authentication"
++
++  # 1. Generate an untrusted client leaf and an arbitrary target certificate.
++  gen_cert_and_key "chain_leaf"
++  gen_cert_and_key "chain_target"
++  leaf_fingerprint="$(cert_fingerprint "${LXD_CONF}/chain_leaf.crt")"
++  leaf_fingerprint_short=$(echo "${leaf_fingerprint}" | cut -c1-12)
++  target_fingerprint="$(cert_fingerprint "${LXD_CONF}/chain_target.crt")"
++
++  # Build a multi-certificate chain: [leaf, target].
++  cat "${LXD_CONF}/chain_leaf.crt" "${LXD_CONF}/chain_target.crt" > "${TEST_DIR}/chain_injected.pem"
++
++  # 2. Issue a TLS client trust token.
++  chain_token="$(lxc config trust add --name chain-user --quiet)"
++
++  # 3. Attempt onboarding using the multi-certificate chain.
++  # The client proves ownership of chain_leaf.key during the TLS handshake.
++  curl -k -s \
++    --cert "${TEST_DIR}/chain_injected.pem" \
++    --key "${LXD_CONF}/chain_leaf.key" \
++    -X POST \
++    -H "Content-Type: application/json" \
++    --data "{\"trust_token\": \"${chain_token}\"}" \
++    "https://${LXD_ADDR}/1.0/certificates" | jq --exit-status '.type == "sync" and .status_code == 200'
++
++  # 4. Assert that the activated identity matches the LEAF certificate, NOT the injected secondary certificate.
++  lxc config trust list --format csv | grep -F "client,chain-user,chain_leaf.local,${leaf_fingerprint_short}"
++  ! lxc config trust list --format csv | grep -F "$(echo "${target_fingerprint}" | cut -c1-12)" || false
++
++  # 5. Assert that the client presenting the chain signed by chain_leaf.key is now authenticated.
++  curl -k -s \
++    --cert "${TEST_DIR}/chain_injected.pem" \
++    --key "${LXD_CONF}/chain_leaf.key" \
++    "https://${LXD_ADDR}/1.0" | jq --exit-status '.metadata.auth == "trusted"'
++
++  # 6. Assert that a client using chain_target.key is NOT authenticated (it was never trusted).
++  curl -k -s \
++    --cert "${LXD_CONF}/chain_target.crt" \
++    --key "${LXD_CONF}/chain_target.key" \
++    "https://${LXD_ADDR}/1.0" | jq --exit-status '.metadata.auth == "untrusted"'
++
++  # 7. Assert that an untrusted leaf bundling an already trusted certificate cannot authenticate.
++  # An attacker generates their own keypair and bundles the newly trusted 'chain_leaf.crt' into their chain.
++  gen_cert_and_key "untrusted_attacker"
++  cat "${LXD_CONF}/untrusted_attacker.crt" "${LXD_CONF}/chain_leaf.crt" > "${TEST_DIR}/spoofed_chain.pem"
++
++  curl -k -s \
++    --cert "${TEST_DIR}/spoofed_chain.pem" \
++    --key "${LXD_CONF}/untrusted_attacker.key" \
++    "https://${LXD_ADDR}/1.0" | jq --exit-status '.metadata.auth == "untrusted"'
++
++  # Clean up identity and temporary certificates.
++  lxc config trust remove "${leaf_fingerprint}"
++  rm "${TEST_DIR}/chain_injected.pem" "${TEST_DIR}/spoofed_chain.pem"
++  rm "${LXD_CONF}"/{chain_leaf,chain_target,untrusted_attacker}.{crt,key}
++
+   gen_cert_and_key "metrics"
+ 
+   # Ensure type=metrics certificates cannot access anything besides /1.0/metrics.
